@@ -1,6 +1,7 @@
 use crate::data::price_level::PriceLevel;
 use crate::orderbook::util::side::Side;
 use std::collections::BTreeMap;
+use std::io::{BufWriter, Write};
 
 #[derive(Debug)]
 pub struct BookSide<OrderSide: Side> {
@@ -21,10 +22,14 @@ impl<OrderSide: Side> BookSide<OrderSide> {
     }
 
     // For testing mainly
-    pub fn print_levels(&self) {
+    pub fn print_levels<W: Write>(&self, output: &mut BufWriter<W>) -> std::io::Result<()> {
         for (key, level) in &self.levels {
             let price = OrderSide::key_to_price(key.clone());
-            println!("Price: {:?} | Orders: {}", price, level.total_orders);
+            output.write_all(
+                format!("Price: {:?} | Orders: {}\n", price, level.total_orders).as_bytes(),
+            )?;
         }
+
+        Ok(())
     }
 }

@@ -13,6 +13,7 @@ use slab::Slab;
 use std::cmp::Reverse;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::io::{BufWriter, Write};
 
 pub struct OrderBook {
     bids: BookSide<Bids>,
@@ -221,8 +222,19 @@ impl OrderBook {
         self.asks.levels.first_key_value().map(|(k, _)| k)
     }
 
+    pub fn print_book<W: Write>(&self, output: &mut BufWriter<W>) -> std::io::Result<()> {
+        output.write_all("---- BIDS ----\n".as_bytes())?;
+        self.bids.print_levels(output)?;
+        output.write_all("---- ASKS ----\n".as_bytes())?;
+        self.asks.print_levels(output)?;
+        let checksum = self.checksum();
+
+        output.write_all(format!("OrderBook checksum is: {}\n", checksum).as_bytes())?;
+        Ok(())
+    }
+
     /// For checking equality of order book state via a checksum
-    pub fn checksum(&self) -> u64 {
+    fn checksum(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
 
         // Bids
@@ -386,8 +398,6 @@ mod tests {
         book.insert_bids(resting(3, 101, 5, IncomingSide::Buy), 5);
         book.insert_bids(resting(1, 102, 5, IncomingSide::Buy), 5);
         book.insert_bids(resting(2, 102, 5, IncomingSide::Buy), 5);
-
-        book.bids.print_levels();
 
         let mut iter = book.match_limit_sell(&limit(4, 101, 8, IncomingSide::Sell));
 
