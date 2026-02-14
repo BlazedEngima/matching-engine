@@ -364,6 +364,42 @@ mod tests {
     }
 
     #[test]
+    fn test_limit_order_no_match() {
+        let mut book = OrderBook::default();
+
+        // Existing ask at 105
+        book.insert_asks(resting(1, 105, 5, IncomingSide::Sell), 5);
+
+        let mut iter = book.match_limit_buy(limit(999, 100, 5, IncomingSide::Buy));
+
+        let fills: Vec<_> = iter.by_ref().collect();
+
+        assert!(fills.is_empty());
+
+        // Entire quantity should remain
+        let remaining = iter.remaining();
+        assert_eq!(remaining, 5);
+
+        // Simulate typical behavior: remainder inserted
+        book.insert_bids(resting(999, 100, 5, IncomingSide::Buy), 5);
+
+        let best_bid = book.best_bid().unwrap();
+        assert_eq!(best_bid.0, PriceKey(100));
+
+        let level = book
+            .bids
+            .levels
+            .get(&std::cmp::Reverse(PriceKey(100)))
+            .unwrap();
+
+        assert_eq!(level.total_orders, 1);
+
+        let head_idx = level.head.unwrap();
+        assert_eq!(book.orders[head_idx].order_id, 999);
+        assert_eq!(book.orders[head_idx].qty, 5);
+    }
+
+    #[test]
     fn test_market_partial_and_full_fill() {
         let mut book = OrderBook::default();
 
