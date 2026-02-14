@@ -1,3 +1,4 @@
+use crate::data::order_types::IncomingSide;
 use crate::data::orders::inbound_orders::{IncomingLimitOrder, IncomingMarketOrder};
 use crate::data::orders::resting_orders::{OrderId, RestingOrder};
 use crate::orderbook::util::book_side::BookSide;
@@ -28,6 +29,17 @@ impl Default for OrderBook {
 }
 
 impl OrderBook {
+    /// Wrapper for insert_order
+    #[inline(always)]
+    pub fn insert_bids<T: Into<RestingOrder>>(&mut self, order: T, remaining: u32) {
+        self.insert_order::<true, _>(order, remaining);
+    }
+
+    #[inline(always)]
+    pub fn insert_asks<T: Into<RestingOrder>>(&mut self, order: T, remaining: u32) {
+        self.insert_order::<false, _>(order, remaining);
+    }
+
     /// Insert new order into order book
     pub fn insert_order<const IS_BID: bool, T: Into<RestingOrder>>(
         &mut self,
@@ -60,42 +72,43 @@ impl OrderBook {
 
     /// Cancel an existing order by OrderId
     /// Will do nothing if order doesn't exist
-    pub fn cancel_order<const IS_BID: bool>(&mut self, order_id: OrderId) {
-        match self.order_map.remove(&order_id) {
-            Some(idx) => {
-                let order = self.orders.remove(idx);
-                let level = if IS_BID {
-                    self.bids.level_mut(Reverse(PriceKey(order.price)))
-                } else {
-                    self.asks.level_mut(PriceKey(order.price))
-                };
-
-                // Update FIFO
-                if let Some(prev) = order.prev {
-                    self.orders[prev].next = order.next;
-                } else {
-                    level.head = order.next;
-                }
-                if let Some(next) = order.next {
-                    self.orders[next].prev = order.prev;
-                } else {
-                    level.tail = order.prev;
-                }
-
-                level.total_orders -= 1;
-
-                // Edge case on last order in price level
-                if level.head.is_none() {
-                    if IS_BID {
-                        self.bids.levels.remove(&Reverse(PriceKey(order.price)));
-                    } else {
-                        self.asks.levels.remove(&PriceKey(order.price));
-                    }
-                }
-            }
-            _ => {
+    pub fn cancel_order(&mut self, order_id: OrderId) {
+        let idx = match self.order_map.remove(&order_id) {
+            Some(i) => i,
+            None => {
                 // TODO: Better logging here
-                println!("Unable to find order id when cancelling. Skipping operation...");
+                println!("Order id not found during cancel");
+                return;
+            }
+        };
+
+        let price_key = PriceKey(self.orders[idx].price);
+        let side = self.orders[idx].side.clone();
+        let level = match side {
+            IncomingSide::Buy => self.bids.level_mut(Reverse(price_key.clone())),
+            IncomingSide::Sell => self.asks.level_mut(price_key.clone()),
+        };
+
+        let prev = self.orders[idx].prev;
+        let next = self.orders[idx].next;
+
+        // Update FIFO
+        if let Some(prev_idx) = prev {
+            self.orders[prev_idx].next = next;
+        } else {
+            level.head = next;
+        }
+
+        level.total_orders -= 1;
+
+        if level.head.is_none() {
+            match side {
+                IncomingSide::Buy => {
+                    self.bids.levels.remove(&std::cmp::Reverse(price_key));
+                }
+                IncomingSide::Sell => {
+                    self.asks.levels.remove(&price_key);
+                }
             }
         }
     }
@@ -182,62 +195,188 @@ impl OrderBook {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::orderbook::util::side::Side;
+    use chrono::Utc;
 
-    fn price(p: u64) -> PriceKey {
-        PriceKey(p)
+    use super::*;
+
+    fn resting(id: u64, price: u64, qty: u32, side: IncomingSide) -> RestingOrder {
+        RestingOrder {
+            order_id: id,
+            price,
+            qty,
+            side,
+            next: None,
+            prev: None,
+            ts: Utc::now().timestamp_micros(),
+        }
+    }
+
+    fn market(id: u64, qty: u32, side: IncomingSide) -> IncomingMarketOrder {
+        IncomingMarketOrder {
+            order_id: id,
+            qty,
+            side,
+        }
+    }
+
+    fn limit(id: u64, price: u64, qty: u32, side: IncomingSide) -> IncomingLimitOrder {
+        IncomingLimitOrder {
+            order_id: id,
+            price,
+            qty,
+            side,
+        }
+    }
+
+    fn assert_book_consistency(book: &OrderBook) {
+        for level in book.bids.levels.values() {
+            assert!(level.head.is_some());
+            assert!(level.total_orders > 0);
+        }
+        for level in book.asks.levels.values() {
+            assert!(level.head.is_some());
+            assert!(level.total_orders > 0);
+        }
     }
 
     #[test]
-    fn test_insert_and_sorting() {
+    fn test_price_sorting() {
         let mut book = OrderBook::default();
 
-        // Insert bids
-        book.insert_order(1, price(100), 10);
-        book.insert_bid(2, price(105), 5);
-        book.insert_bid(3, price(102), 7);
+        book.insert_bids(resting(1, 100, 5, IncomingSide::Buy), 5);
+        book.insert_bids(resting(2, 105, 5, IncomingSide::Buy), 5);
+        book.insert_bids(resting(3, 102, 5, IncomingSide::Buy), 5);
 
-        // Insert asks
-        book.insert_ask(4, price(110), 3);
-        book.insert_ask(5, price(108), 6);
-        book.insert_ask(6, price(115), 2);
+        book.insert_asks(resting(4, 110, 5, IncomingSide::Sell), 5);
+        book.insert_asks(resting(5, 108, 5, IncomingSide::Sell), 5);
+        book.insert_asks(resting(6, 115, 5, IncomingSide::Sell), 5);
 
         // Best bid should be highest
-        let best_bid = book.bids.levels.first_key_value().unwrap();
-        assert_eq!(Bids::key_to_price(best_bid.0), price(105));
+        let best_bid = book.bids.levels.first_key_value().unwrap().0;
+        assert_eq!(best_bid.0.0, 105);
 
         // Best ask should be lowest
-        let best_ask = book.asks.levels.first_key_value().unwrap();
-        assert_eq!(Asks::key_to_price(best_ask.0), price(108));
+        let best_ask = book.asks.levels.first_key_value().unwrap().0;
+        assert_eq!(best_ask.0, 108);
+        assert_book_consistency(&book);
+    }
+
+    #[test]
+    fn test_fifo_same_price() {
+        let mut book = OrderBook::default();
+
+        book.insert_asks(resting(1, 100, 5, IncomingSide::Sell), 5);
+        book.insert_asks(resting(2, 100, 5, IncomingSide::Sell), 5);
+        book.insert_asks(resting(3, 100, 5, IncomingSide::Sell), 5);
+
+        let level = book.asks.levels.get(&PriceKey(100)).unwrap();
+
+        let head = level.head.unwrap();
+        let second = book.orders[head].next.unwrap();
+        let third = book.orders[second].next.unwrap();
+
+        assert_eq!(book.orders[head].order_id, 1);
+        assert_eq!(book.orders[second].order_id, 2);
+        assert_eq!(book.orders[third].order_id, 3);
+        assert_book_consistency(&book);
     }
 
     #[test]
     fn test_cancel_removes_order_and_level() {
         let mut book = OrderBook::default();
 
-        book.insert_bid(1, price(100), 10);
+        book.insert_bids(resting(1, 100, 10, IncomingSide::Buy), 10);
 
         // Level should exist
         assert_eq!(book.bids.levels.len(), 1);
 
-        book.cancel(1);
+        book.cancel_order(1);
 
         // After cancel, price level should be gone
         assert!(book.bids.levels.is_empty());
+        assert_book_consistency(&book);
     }
 
     #[test]
-    fn test_matching_iterator_partial_and_full_fill() {
+    fn test_match_price_time_priority() {
+        let mut book = OrderBook::default();
+
+        // Bids
+        book.insert_bids(resting(3, 101, 5, IncomingSide::Buy), 5);
+        book.insert_bids(resting(1, 102, 5, IncomingSide::Buy), 5);
+        book.insert_bids(resting(2, 102, 5, IncomingSide::Buy), 5);
+
+        book.bids.print_levels();
+
+        let mut iter = book.match_limit_sell(limit(4, 101, 8, IncomingSide::Sell));
+
+        let fills: Vec<_> = iter.by_ref().collect();
+        println!("fills: {}", fills.len());
+
+        assert_eq!(fills.len(), 2);
+
+        // FIFO within price 100
+        assert_eq!(fills[0].maker, 1);
+        assert_eq!(fills[0].taker, 4);
+        assert_eq!(fills[0].price, 102);
+        assert_eq!(fills[0].qty, 5);
+
+        assert_eq!(fills[1].maker, 2);
+        assert_eq!(fills[1].taker, 4);
+        assert_eq!(fills[1].price, 102);
+        assert_eq!(fills[1].qty, 3);
+
+        assert_eq!(book.bids.levels.len(), 2);
+        assert_eq!(book.orders.len(), 2);
+
+        assert_book_consistency(&book);
+    }
+
+    #[test]
+    fn test_price_level_removed_after_full_fill() {
+        let mut book = OrderBook::default();
+
+        book.insert_asks(resting(1, 100, 5, IncomingSide::Sell), 5);
+        book.insert_asks(resting(2, 100, 5, IncomingSide::Sell), 5);
+        book.insert_asks(resting(3, 101, 6, IncomingSide::Sell), 6);
+
+        let mut iter = book.match_limit_buy(limit(4, 101, 16, IncomingSide::Buy));
+        let fills: Vec<_> = iter.by_ref().collect();
+
+        assert_eq!(fills.len(), 3);
+
+        // FIFO within price 100
+        assert_eq!(fills[0].maker, 1);
+        assert_eq!(fills[0].taker, 4);
+        assert_eq!(fills[0].price, 100);
+        assert_eq!(fills[0].qty, 5);
+
+        assert_eq!(fills[1].maker, 2);
+        assert_eq!(fills[1].taker, 4);
+        assert_eq!(fills[1].price, 100);
+        assert_eq!(fills[1].qty, 5);
+
+        assert_eq!(fills[2].maker, 3);
+        assert_eq!(fills[2].taker, 4);
+        assert_eq!(fills[2].price, 101);
+        assert_eq!(fills[2].qty, 6);
+
+        assert!(book.asks.levels.is_empty());
+    }
+
+    #[test]
+    fn test_market_partial_and_full_fill() {
         let mut book = OrderBook::default();
 
         // Add asks
-        book.insert_ask(1, price(100), 5);
-        book.insert_ask(2, price(100), 5);
-        book.insert_ask(3, price(101), 10);
+        book.insert_asks(resting(1, 100, 5, IncomingSide::Sell), 5);
+        book.insert_asks(resting(2, 100, 5, IncomingSide::Sell), 5);
+        book.insert_asks(resting(3, 101, 10, IncomingSide::Sell), 10);
 
         // Market buy for qty 8
-        let fills: Vec<_> = book.match_market_buy(8).collect();
+        let fills: Vec<_> = book
+            .match_market_buy(market(4, 8, IncomingSide::Buy))
+            .collect();
 
         // Should consume:
         // Order 1 (5)
@@ -245,11 +384,11 @@ mod tests {
         assert_eq!(fills.len(), 2);
 
         assert_eq!(fills[0].maker, 1);
-        assert_eq!(fills[0].price, price(100));
+        assert_eq!(fills[0].price, 100);
         assert_eq!(fills[0].qty, 5);
 
         assert_eq!(fills[1].maker, 2);
-        assert_eq!(fills[1].price, price(100));
+        assert_eq!(fills[1].price, 100);
         assert_eq!(fills[1].qty, 3);
 
         // Order 2 should still have 2 remaining
@@ -258,37 +397,47 @@ mod tests {
 
         // Price level 100 should still exist
         assert_eq!(book.asks.levels.len(), 2);
+        assert_book_consistency(&book);
     }
 
     #[test]
-    fn test_full_price_level_cleanup_after_match() {
+    fn test_full_price_level_cleanup_after_market_match() {
         let mut book = OrderBook::default();
 
-        book.insert_ask(1, price(100), 5);
+        book.insert_asks(resting(1, 100, 5, IncomingSide::Sell), 5);
 
         // Fully consume
-        let fills: Vec<_> = book.match_market_buy(5).collect();
+        let fills: Vec<_> = book
+            .match_market_buy(market(2, 5, IncomingSide::Buy))
+            .collect();
 
         assert_eq!(fills.len(), 1);
         assert!(book.asks.levels.is_empty());
+        assert_book_consistency(&book);
     }
 
     #[test]
-    fn test_multi_price_level_match_order() {
+    fn test_multi_price_level_match_market_order() {
         let mut book = OrderBook::default();
 
-        book.insert_ask(1, price(100), 5);
-        book.insert_ask(2, price(101), 5);
-        book.insert_ask(3, price(102), 5);
+        book.insert_asks(resting(1, 100, 5, IncomingSide::Sell), 5);
+        book.insert_asks(resting(2, 101, 5, IncomingSide::Sell), 5);
+        book.insert_asks(resting(3, 102, 5, IncomingSide::Sell), 5);
 
-        let fills: Vec<_> = book.match_market_buy(12).collect();
+        let fills: Vec<_> = book
+            .match_market_buy(market(4, 12, IncomingSide::Buy))
+            .collect();
 
         // Should match strictly price-time priority:
         // 100 -> 101 -> 102
         assert_eq!(fills.len(), 3);
 
-        assert_eq!(fills[0].price, price(100));
-        assert_eq!(fills[1].price, price(101));
-        assert_eq!(fills[2].price, price(102));
+        assert_eq!(fills[0].price, 100);
+        assert_eq!(fills[0].qty, 5);
+        assert_eq!(fills[1].price, 101);
+        assert_eq!(fills[1].qty, 5);
+        assert_eq!(fills[2].price, 102);
+        assert_eq!(fills[2].qty, 2);
+        assert_book_consistency(&book);
     }
 }
