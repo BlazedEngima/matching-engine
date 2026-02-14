@@ -33,13 +33,13 @@ impl Default for OrderBook {
 impl OrderBook {
     /// Wrapper for insert_order
     #[inline(always)]
-    pub fn insert_bids<T: Into<RestingOrder>>(&mut self, order: T, remaining: u32) {
-        self.insert_order::<true, _>(order, remaining);
+    pub fn insert_bids<T: Into<RestingOrder>>(&mut self, order: T, remaining: u32) -> BookEvent {
+        self.insert_order::<true, _>(order, remaining)
     }
 
     #[inline(always)]
-    pub fn insert_asks<T: Into<RestingOrder>>(&mut self, order: T, remaining: u32) {
-        self.insert_order::<false, _>(order, remaining);
+    pub fn insert_asks<T: Into<RestingOrder>>(&mut self, order: T, remaining: u32) -> BookEvent {
+        self.insert_order::<false, _>(order, remaining)
     }
 
     /// Insert new order into order book
@@ -47,7 +47,7 @@ impl OrderBook {
         &mut self,
         order: T,
         remaining: u32,
-    ) -> Vec<BookEvent> {
+    ) -> BookEvent {
         let mut order = order.into();
         order.qty = remaining;
         let idx = self.orders.insert(order);
@@ -71,12 +71,12 @@ impl OrderBook {
         }
         level.total_orders += 1;
 
-        vec![BookEvent::Insert(InsertEvent {
+        BookEvent::Insert(InsertEvent {
             order_id: self.orders[idx].order_id,
             price,
             qty: remaining,
             ts: Utc::now().timestamp_micros(),
-        })]
+        })
     }
 
     /// Cancel an existing order by OrderId

@@ -22,11 +22,11 @@ impl Engine {
         match order.side {
             IncomingSide::Buy => {
                 let mut iter = self.book.match_limit_buy(&order);
-                let fill = iter.by_ref().collect();
+                let mut fill: Vec<BookEvent> = iter.by_ref().collect();
                 let remaining = iter.remaining();
 
                 if remaining > 0 {
-                    self.book.insert_bids(order, remaining);
+                    fill.push(self.book.insert_bids(order, remaining));
                 }
 
                 fill
@@ -34,11 +34,11 @@ impl Engine {
 
             IncomingSide::Sell => {
                 let mut iter = self.book.match_limit_sell(&order);
-                let fill = iter.by_ref().collect();
+                let mut fill: Vec<BookEvent> = iter.by_ref().collect();
                 let remaining = iter.remaining();
 
                 if remaining > 0 {
-                    self.book.insert_asks(order, remaining);
+                    fill.push(self.book.insert_asks(order, remaining));
                 }
 
                 fill
