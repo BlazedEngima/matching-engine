@@ -6,10 +6,13 @@ use crate::orderbook::util::book_side::BookSide;
 use crate::orderbook::util::match_iter::MatchIter;
 use crate::orderbook::util::price_key::PriceKey;
 use crate::orderbook::util::side::{Asks, Bids};
+
 use chrono::Utc;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use slab::Slab;
 use std::cmp::Reverse;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 pub struct OrderBook {
     bids: BookSide<Bids>,
@@ -31,6 +34,15 @@ impl Default for OrderBook {
 }
 
 impl OrderBook {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            bids: BookSide::default(),
+            asks: BookSide::default(),
+            orders: Slab::with_capacity(capacity),
+            order_map: FxHashMap::with_capacity_and_hasher(capacity, FxBuildHasher),
+        }
+    }
+
     /// Wrapper for insert_order
     #[inline(always)]
     pub fn insert_bids<T: Into<RestingOrder>>(&mut self, order: T, remaining: u32) -> BookEvent {
@@ -207,6 +219,51 @@ impl OrderBook {
     #[inline]
     pub fn best_ask(&self) -> Option<&PriceKey> {
         self.asks.levels.first_key_value().map(|(k, _)| k)
+    }
+
+    /// For checking equality of order book state via a checksum
+    pub fn checksum(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+
+        // Bids
+        for (price, level) in &self.bids.levels {
+            price.hash(&mut hasher);
+            level.total_orders.hash(&mut hasher);
+
+            let mut current = level.head;
+
+            while let Some(idx) = current {
+                let order = &self.orders[idx];
+
+                // Hash logical order state only
+                order.order_id.hash(&mut hasher);
+                order.qty.hash(&mut hasher);
+                order.side.hash(&mut hasher);
+
+                current = order.next;
+            }
+        }
+
+        // Asks
+        for (price, level) in &self.asks.levels {
+            price.hash(&mut hasher);
+            level.total_orders.hash(&mut hasher);
+
+            let mut current = level.head;
+
+            while let Some(idx) = current {
+                let order = &self.orders[idx];
+
+                // Hash logical order state only
+                order.order_id.hash(&mut hasher);
+                order.qty.hash(&mut hasher);
+                order.side.hash(&mut hasher);
+
+                current = order.next;
+            }
+        }
+
+        hasher.finish()
     }
 }
 
