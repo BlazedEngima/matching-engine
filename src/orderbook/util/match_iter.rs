@@ -1,4 +1,4 @@
-use crate::data::fill_type::{BookEvent, MatchEvent};
+use crate::data::book_event::{BookEvent, MatchEvent};
 use crate::data::orders::resting_orders::{OrderId, RestingOrder};
 use crate::orderbook::util::book_side::BookSide;
 use crate::orderbook::util::side::Side;

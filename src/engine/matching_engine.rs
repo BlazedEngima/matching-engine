@@ -1,4 +1,4 @@
-use crate::data::fill_type::BookEvent;
+use crate::data::book_event::BookEvent;
 use crate::data::order_types::{IncomingOrder, IncomingSide};
 use crate::data::orders::inbound_orders::{
     IncomingCancelOrder, IncomingLimitOrder, IncomingMarketOrder,

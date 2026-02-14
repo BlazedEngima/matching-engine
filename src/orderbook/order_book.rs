@@ -1,4 +1,4 @@
-use crate::data::fill_type::{BookEvent, CancelEvent, InsertEvent};
+use crate::data::book_event::{BookEvent, CancelEvent, InsertEvent};
 use crate::data::order_types::IncomingSide;
 use crate::data::orders::inbound_orders::{IncomingLimitOrder, IncomingMarketOrder};
 use crate::data::orders::resting_orders::{OrderId, RestingOrder};
@@ -269,11 +269,9 @@ impl OrderBook {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
-
-    use crate::data::fill_type::MatchEvent;
-
     use super::*;
+    use crate::data::book_event::MatchEvent;
+    use chrono::Utc;
 
     fn resting(id: u64, price: u64, qty: u32, side: IncomingSide) -> RestingOrder {
         RestingOrder {
