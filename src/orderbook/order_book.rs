@@ -311,7 +311,6 @@ mod tests {
         let mut iter = book.match_limit_sell(limit(4, 101, 8, IncomingSide::Sell));
 
         let fills: Vec<_> = iter.by_ref().collect();
-        println!("fills: {}", fills.len());
 
         assert_eq!(fills.len(), 2);
 
