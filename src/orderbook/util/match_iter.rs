@@ -1,4 +1,4 @@
-use crate::data::fill_type::Fill;
+use crate::data::fill_type::FillEvent;
 use crate::data::orders::resting_orders::{OrderId, RestingOrder};
 use crate::orderbook::util::book_side::BookSide;
 use crate::orderbook::util::side::Side;
@@ -36,7 +36,7 @@ impl<'a, OrderSide: Side> MatchIter<'a, OrderSide> {
 }
 
 impl<'a, OrderSide: Side> Iterator for MatchIter<'a, OrderSide> {
-    type Item = Fill;
+    type Item = FillEvent;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining == 0 {
@@ -88,7 +88,7 @@ impl<'a, OrderSide: Side> Iterator for MatchIter<'a, OrderSide> {
             entry.remove();
         }
 
-        Some(Fill {
+        Some(FillEvent {
             maker: order_id,
             taker: self.order_id,
             price: best_price.0,

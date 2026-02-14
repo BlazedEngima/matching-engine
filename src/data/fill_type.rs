@@ -1,6 +1,6 @@
 use crate::data::orders::resting_orders::OrderId;
 
-pub struct Fill {
+pub struct FillEvent {
     pub maker: OrderId,
     pub taker: OrderId,
     pub price: u64,
