@@ -3,6 +3,7 @@ use crate::data::orders::inbound_orders::{
 };
 
 #[repr(u8)]
+#[derive(Debug, Clone)]
 pub enum IncomingSide {
     Buy = 0,
     Sell = 1,
