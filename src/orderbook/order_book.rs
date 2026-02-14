@@ -114,7 +114,7 @@ impl OrderBook {
     }
 
     #[inline]
-    pub fn match_market_buy(&mut self, order: IncomingMarketOrder) -> MatchIter<'_, Asks> {
+    pub fn match_market_buy(&mut self, order: &IncomingMarketOrder) -> MatchIter<'_, Asks> {
         MatchIter::new(
             &mut self.asks,
             &mut self.orders,
@@ -126,7 +126,7 @@ impl OrderBook {
     }
 
     #[inline]
-    pub fn match_market_sell(&mut self, order: IncomingMarketOrder) -> MatchIter<'_, Bids> {
+    pub fn match_market_sell(&mut self, order: &IncomingMarketOrder) -> MatchIter<'_, Bids> {
         MatchIter::new(
             &mut self.bids,
             &mut self.orders,
@@ -138,7 +138,7 @@ impl OrderBook {
     }
 
     #[inline]
-    pub fn match_limit_buy(&mut self, order: IncomingLimitOrder) -> MatchIter<'_, Asks> {
+    pub fn match_limit_buy(&mut self, order: &IncomingLimitOrder) -> MatchIter<'_, Asks> {
         MatchIter::new(
             &mut self.asks,
             &mut self.orders,
@@ -150,7 +150,7 @@ impl OrderBook {
     }
 
     #[inline]
-    pub fn match_limit_sell(&mut self, order: IncomingLimitOrder) -> MatchIter<'_, Bids> {
+    pub fn match_limit_sell(&mut self, order: &IncomingLimitOrder) -> MatchIter<'_, Bids> {
         MatchIter::new(
             &mut self.bids,
             &mut self.orders,
@@ -308,7 +308,7 @@ mod tests {
 
         book.bids.print_levels();
 
-        let mut iter = book.match_limit_sell(limit(4, 101, 8, IncomingSide::Sell));
+        let mut iter = book.match_limit_sell(&limit(4, 101, 8, IncomingSide::Sell));
 
         let fills: Vec<_> = iter.by_ref().collect();
 
@@ -339,7 +339,7 @@ mod tests {
         book.insert_asks(resting(2, 100, 5, IncomingSide::Sell), 5);
         book.insert_asks(resting(3, 101, 6, IncomingSide::Sell), 6);
 
-        let mut iter = book.match_limit_buy(limit(4, 101, 16, IncomingSide::Buy));
+        let mut iter = book.match_limit_buy(&limit(4, 101, 16, IncomingSide::Buy));
         let fills: Vec<_> = iter.by_ref().collect();
 
         assert_eq!(fills.len(), 3);
@@ -370,7 +370,7 @@ mod tests {
         // Existing ask at 105
         book.insert_asks(resting(1, 105, 5, IncomingSide::Sell), 5);
 
-        let mut iter = book.match_limit_buy(limit(999, 100, 5, IncomingSide::Buy));
+        let mut iter = book.match_limit_buy(&limit(999, 100, 5, IncomingSide::Buy));
 
         let fills: Vec<_> = iter.by_ref().collect();
 
@@ -410,7 +410,7 @@ mod tests {
 
         // Market buy for qty 8
         let fills: Vec<_> = book
-            .match_market_buy(market(4, 8, IncomingSide::Buy))
+            .match_market_buy(&market(4, 8, IncomingSide::Buy))
             .collect();
 
         // Should consume:
@@ -443,7 +443,7 @@ mod tests {
 
         // Fully consume
         let fills: Vec<_> = book
-            .match_market_buy(market(2, 5, IncomingSide::Buy))
+            .match_market_buy(&market(2, 5, IncomingSide::Buy))
             .collect();
 
         assert_eq!(fills.len(), 1);
@@ -460,7 +460,7 @@ mod tests {
         book.insert_asks(resting(3, 102, 5, IncomingSide::Sell), 5);
 
         let fills: Vec<_> = book
-            .match_market_buy(market(4, 12, IncomingSide::Buy))
+            .match_market_buy(&market(4, 12, IncomingSide::Buy))
             .collect();
 
         // Should match strictly price-time priority:
