@@ -2,16 +2,15 @@ use crate::data::order_types::{IncomingOrder, IncomingSide};
 use crate::data::orders::inbound_orders::{
     IncomingCancelOrder, IncomingLimitOrder, IncomingMarketOrder,
 };
-use crate::input::traits::EventSource;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-pub struct Replay<R: BufRead> {
+pub struct ReplayReader<R: BufRead> {
     reader: R,
     buffer: String,
 }
 
-impl Replay<BufReader<File>> {
+impl ReplayReader<BufReader<File>> {
     pub fn from_file(path: &str) -> std::io::Result<Self> {
         let file = File::open(path)?;
         Ok(Self {
@@ -19,19 +18,26 @@ impl Replay<BufReader<File>> {
             buffer: String::with_capacity(256),
         })
     }
-}
 
-impl<R: BufRead> EventSource for Replay<R> {
-    fn next_event(&mut self) -> Option<IncomingOrder> {
-        self.buffer.clear();
+    pub fn parse_orders(&mut self) -> Vec<IncomingOrder> {
+        let mut inputs = vec![];
+        while self
+            .reader
+            .read_line(&mut self.buffer)
+            .expect("Unable to open replay buffer")
+            != 0
+        {
+            match parse_event(&self.buffer) {
+                Some(event) => inputs.push(event),
+                _ => {
+                    println!("Error: Invalid input in replay file");
+                }
+            };
 
-        let bytes = self.reader.read_line(&mut self.buffer).ok()?;
-
-        if bytes == 0 {
-            return None; // EOF
+            self.buffer.clear(); // Important: clear buffer for next read
         }
 
-        parse_event(self.buffer.trim())
+        inputs
     }
 }
 

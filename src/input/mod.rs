@@ -1,3 +1,2 @@
 pub mod generator;
-pub mod replay;
-pub mod traits;
+pub mod replay_reader;
