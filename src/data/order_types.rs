@@ -3,13 +3,13 @@ use crate::data::orders::inbound_orders::{
 };
 
 #[repr(u8)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum IncomingSide {
     Buy = 0,
     Sell = 1,
 }
 
-pub enum InboundOrderType {
+pub enum IncomingOrder {
     InboundLimit(IncomingLimitOrder),
     InboundMarket(IncomingMarketOrder),
     InboundCancel(IncomingCancelOrder),

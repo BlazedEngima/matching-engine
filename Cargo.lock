@@ -115,6 +115,7 @@ name = "matching-engine"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "rtrb",
  "rustc-hash",
  "slab",
 ]
@@ -151,6 +152,12 @@ checksum = "21b2ebcf727b7760c461f091f9f0f539b77b8e87f2fd88131e7f1b433b3cece4"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "rtrb"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad8388ea1a9e0ea807e442e8263a699e7edcb320ecbcd21b4fa8ff859acce3ba"
 
 [[package]]
 name = "rustc-hash"

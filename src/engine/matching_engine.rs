@@ -1,20 +1,26 @@
 use crate::data::fill_type::BookEvent;
-use crate::data::order_types::{InboundOrderType, IncomingSide};
+use crate::data::order_types::{IncomingOrder, IncomingSide};
 use crate::data::orders::inbound_orders::{
     IncomingCancelOrder, IncomingLimitOrder, IncomingMarketOrder,
 };
 use crate::orderbook::order_book::OrderBook;
 
+#[derive(Default)]
 pub struct Engine {
     book: OrderBook,
 }
 
 impl Engine {
-    pub fn match_order(&mut self, order: InboundOrderType) -> Vec<BookEvent> {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            book: OrderBook::new(capacity),
+        }
+    }
+    pub fn match_order(&mut self, order: IncomingOrder) -> Vec<BookEvent> {
         match order {
-            InboundOrderType::InboundLimit(limit) => self.match_limit(limit),
-            InboundOrderType::InboundMarket(market) => self.match_market(market),
-            InboundOrderType::InboundCancel(cancel) => self.match_cancel(cancel),
+            IncomingOrder::InboundLimit(limit) => self.match_limit(limit),
+            IncomingOrder::InboundMarket(market) => self.match_market(market),
+            IncomingOrder::InboundCancel(cancel) => self.match_cancel(cancel),
         }
     }
 

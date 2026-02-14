@@ -1,34 +1,19 @@
-use std::cmp::Reverse;
-
-use matching_engine::orderbook::{
-    order_book::OrderBook,
-    util::{
-        book_side::BookSide,
-        price_key::PriceKey,
-        side::{Asks, Bids},
-    },
-};
+use matching_engine::{data::fill_type::BookEvent, engine::matching_engine::Engine};
+use rtrb::RingBuffer;
+use std::thread;
 
 fn main() {
-    println!("--- ASK SIDE (Ascending) ---");
-    let mut asks = BookSide::<Asks>::default();
+    // Initialize SPSC ring_buffer to communicate to logging thread
+    let (mut prod, mut cons) = RingBuffer::<BookEvent>::new(1 << 16);
+    let engine = Engine::new(1 << 16);
 
-    // Insert out of order intentionally
-    asks.level_mut(PriceKey(99));
-    asks.level_mut(PriceKey(101));
-    asks.level_mut(PriceKey(103));
-    asks.level_mut(PriceKey(105));
+    // Logging thread
+    thread::spawn(move || {
+        while let Ok(event) = cons.pop() {
+            log_event(event);
+        }
+    });
 
-    asks.print_levels();
-
-    println!();
-    println!("--- BID SIDE (Descending) ---");
-    let mut bids = BookSide::<Bids>::default();
-
-    bids.level_mut(Reverse(PriceKey(105)));
-    bids.level_mut(Reverse(PriceKey(101)));
-    bids.level_mut(Reverse(PriceKey(103)));
-    bids.level_mut(Reverse(PriceKey(99)));
-
-    bids.print_levels();
+    // Matching engine thread
+    prod.push(event).ok(); // ideally avoid blocking
 }
