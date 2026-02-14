@@ -6,7 +6,9 @@ pub trait Side {
 
     fn key_to_price(key: Self::Key) -> PriceKey;
 
-    fn compare_price(best: &Self::Key, limit: &Self::Key) -> bool;
+    fn compare_price(best: &Self::Key, limit: &Self::Key) -> bool {
+        best > limit
+    }
 }
 
 pub struct Bids;
@@ -17,11 +19,6 @@ impl Side for Bids {
     fn key_to_price(key: Self::Key) -> PriceKey {
         key.0
     }
-
-    #[inline]
-    fn compare_price(best: &Self::Key, limit: &Self::Key) -> bool {
-        best < limit
-    }
 }
 
 pub struct Asks;
@@ -31,10 +28,5 @@ impl Side for Asks {
     #[inline]
     fn key_to_price(key: Self::Key) -> PriceKey {
         key
-    }
-
-    #[inline]
-    fn compare_price(best: &Self::Key, limit: &Self::Key) -> bool {
-        best > limit
     }
 }
