@@ -1,6 +1,6 @@
 use crate::data::orders::resting_orders::OrderId;
 
-pub enum FillEvent {
+pub enum BookEvent {
     Match(MatchEvent),
     Cancel(CancelEvent),
     Insert(InsertEvent),

@@ -1,4 +1,4 @@
-use crate::data::fill_type::FillEvent;
+use crate::data::fill_type::BookEvent;
 use crate::data::order_types::{InboundOrderType, IncomingSide};
 use crate::data::orders::inbound_orders::{
     IncomingCancelOrder, IncomingLimitOrder, IncomingMarketOrder,
@@ -10,7 +10,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn match_order(&mut self, order: InboundOrderType) -> Vec<FillEvent> {
+    pub fn match_order(&mut self, order: InboundOrderType) -> Vec<BookEvent> {
         match order {
             InboundOrderType::InboundLimit(limit) => self.match_limit(limit),
             InboundOrderType::InboundMarket(market) => self.match_market(market),
@@ -18,7 +18,7 @@ impl Engine {
         }
     }
 
-    pub fn match_limit(&mut self, order: IncomingLimitOrder) -> Vec<FillEvent> {
+    pub fn match_limit(&mut self, order: IncomingLimitOrder) -> Vec<BookEvent> {
         match order.side {
             IncomingSide::Buy => {
                 let mut iter = self.book.match_limit_buy(&order);
@@ -46,7 +46,7 @@ impl Engine {
         }
     }
 
-    pub fn match_market(&mut self, order: IncomingMarketOrder) -> Vec<FillEvent> {
+    pub fn match_market(&mut self, order: IncomingMarketOrder) -> Vec<BookEvent> {
         match order.side {
             IncomingSide::Buy => {
                 let mut iter = self.book.match_market_buy(&order);
@@ -60,8 +60,7 @@ impl Engine {
         }
     }
 
-    pub fn match_cancel(&mut self, order: IncomingCancelOrder) -> Vec<FillEvent> {
-        self.book.cancel_order(order.order_id);
-        vec![]
+    pub fn match_cancel(&mut self, order: IncomingCancelOrder) -> Vec<BookEvent> {
+        self.book.cancel_order(order.order_id)
     }
 }

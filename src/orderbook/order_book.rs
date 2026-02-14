@@ -1,4 +1,4 @@
-use crate::data::fill_type::{CancelEvent, FillEvent, InsertEvent};
+use crate::data::fill_type::{BookEvent, CancelEvent, InsertEvent};
 use crate::data::order_types::IncomingSide;
 use crate::data::orders::inbound_orders::{IncomingLimitOrder, IncomingMarketOrder};
 use crate::data::orders::resting_orders::{OrderId, RestingOrder};
@@ -47,7 +47,7 @@ impl OrderBook {
         &mut self,
         order: T,
         remaining: u32,
-    ) -> Vec<FillEvent> {
+    ) -> Vec<BookEvent> {
         let mut order = order.into();
         order.qty = remaining;
         let idx = self.orders.insert(order);
@@ -71,7 +71,7 @@ impl OrderBook {
         }
         level.total_orders += 1;
 
-        vec![FillEvent::Insert(InsertEvent {
+        vec![BookEvent::Insert(InsertEvent {
             order_id: self.orders[idx].order_id,
             price,
             qty: remaining,
@@ -81,7 +81,7 @@ impl OrderBook {
 
     /// Cancel an existing order by OrderId
     /// Will do nothing if order doesn't exist
-    pub fn cancel_order(&mut self, order_id: OrderId) -> Vec<FillEvent> {
+    pub fn cancel_order(&mut self, order_id: OrderId) -> Vec<BookEvent> {
         let idx = match self.order_map.remove(&order_id) {
             Some(i) => i,
             None => {
@@ -123,7 +123,7 @@ impl OrderBook {
             }
         }
 
-        vec![FillEvent::Cancel(CancelEvent {
+        vec![BookEvent::Cancel(CancelEvent {
             order_id,
             qty,
             ts: Utc::now().timestamp_micros(),
@@ -247,9 +247,9 @@ mod tests {
         }
     }
 
-    fn match_event(e: &FillEvent) -> &MatchEvent {
+    fn match_event(e: &BookEvent) -> &MatchEvent {
         match e {
-            FillEvent::Match(fill) => fill,
+            BookEvent::Match(fill) => fill,
             _ => panic!("Expected MatchEvent"),
         }
     }
