@@ -33,6 +33,11 @@ impl<'a, OrderSide: Side> MatchIter<'a, OrderSide> {
             price_limit,
         }
     }
+
+    #[inline(always)]
+    pub fn remaining(&self) -> u32 {
+        self.remaining
+    }
 }
 
 impl<'a, OrderSide: Side> Iterator for MatchIter<'a, OrderSide> {
