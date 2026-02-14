@@ -1,3 +1,4 @@
+use crate::data::fill_type::{CancelEvent, FillEvent, InsertEvent};
 use crate::data::order_types::IncomingSide;
 use crate::data::orders::inbound_orders::{IncomingLimitOrder, IncomingMarketOrder};
 use crate::data::orders::resting_orders::{OrderId, RestingOrder};
@@ -5,6 +6,7 @@ use crate::orderbook::util::book_side::BookSide;
 use crate::orderbook::util::match_iter::MatchIter;
 use crate::orderbook::util::price_key::PriceKey;
 use crate::orderbook::util::side::{Asks, Bids};
+use chrono::Utc;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use slab::Slab;
 use std::cmp::Reverse;
@@ -45,7 +47,7 @@ impl OrderBook {
         &mut self,
         order: T,
         remaining: u32,
-    ) {
+    ) -> Vec<FillEvent> {
         let mut order = order.into();
         order.qty = remaining;
         let idx = self.orders.insert(order);
@@ -68,21 +70,30 @@ impl OrderBook {
             level.head = Some(idx);
         }
         level.total_orders += 1;
+
+        vec![FillEvent::Insert(InsertEvent {
+            order_id: self.orders[idx].order_id,
+            price,
+            qty: remaining,
+            ts: Utc::now().timestamp_micros(),
+        })]
     }
 
     /// Cancel an existing order by OrderId
     /// Will do nothing if order doesn't exist
-    pub fn cancel_order(&mut self, order_id: OrderId) {
+    pub fn cancel_order(&mut self, order_id: OrderId) -> Vec<FillEvent> {
         let idx = match self.order_map.remove(&order_id) {
             Some(i) => i,
             None => {
                 // TODO: Better logging here
                 println!("Order id not found during cancel");
-                return;
+                return vec![];
             }
         };
 
         let price_key = PriceKey(self.orders[idx].price);
+        let qty = self.orders[idx].qty;
+
         let side = self.orders[idx].side.clone();
         let level = match side {
             IncomingSide::Buy => self.bids.level_mut(Reverse(price_key.clone())),
@@ -111,6 +122,12 @@ impl OrderBook {
                 }
             }
         }
+
+        vec![FillEvent::Cancel(CancelEvent {
+            order_id,
+            qty,
+            ts: Utc::now().timestamp_micros(),
+        })]
     }
 
     #[inline]
@@ -197,6 +214,8 @@ impl OrderBook {
 mod tests {
     use chrono::Utc;
 
+    use crate::data::fill_type::MatchEvent;
+
     use super::*;
 
     fn resting(id: u64, price: u64, qty: u32, side: IncomingSide) -> RestingOrder {
@@ -225,6 +244,13 @@ mod tests {
             price,
             qty,
             side,
+        }
+    }
+
+    fn match_event(e: &FillEvent) -> &MatchEvent {
+        match e {
+            FillEvent::Match(fill) => fill,
+            _ => panic!("Expected MatchEvent"),
         }
     }
 
@@ -315,15 +341,15 @@ mod tests {
         assert_eq!(fills.len(), 2);
 
         // FIFO within price 100
-        assert_eq!(fills[0].maker, 1);
-        assert_eq!(fills[0].taker, 4);
-        assert_eq!(fills[0].price, 102);
-        assert_eq!(fills[0].qty, 5);
+        assert_eq!(match_event(&fills[0]).maker, 1);
+        assert_eq!(match_event(&fills[0]).taker, 4);
+        assert_eq!(match_event(&fills[0]).price, 102);
+        assert_eq!(match_event(&fills[0]).qty, 5);
 
-        assert_eq!(fills[1].maker, 2);
-        assert_eq!(fills[1].taker, 4);
-        assert_eq!(fills[1].price, 102);
-        assert_eq!(fills[1].qty, 3);
+        assert_eq!(match_event(&fills[1]).maker, 2);
+        assert_eq!(match_event(&fills[1]).taker, 4);
+        assert_eq!(match_event(&fills[1]).price, 102);
+        assert_eq!(match_event(&fills[1]).qty, 3);
 
         assert_eq!(book.bids.levels.len(), 2);
         assert_eq!(book.orders.len(), 2);
@@ -345,20 +371,20 @@ mod tests {
         assert_eq!(fills.len(), 3);
 
         // FIFO within price 100
-        assert_eq!(fills[0].maker, 1);
-        assert_eq!(fills[0].taker, 4);
-        assert_eq!(fills[0].price, 100);
-        assert_eq!(fills[0].qty, 5);
+        assert_eq!(match_event(&fills[0]).maker, 1);
+        assert_eq!(match_event(&fills[0]).taker, 4);
+        assert_eq!(match_event(&fills[0]).price, 100);
+        assert_eq!(match_event(&fills[0]).qty, 5);
 
-        assert_eq!(fills[1].maker, 2);
-        assert_eq!(fills[1].taker, 4);
-        assert_eq!(fills[1].price, 100);
-        assert_eq!(fills[1].qty, 5);
+        assert_eq!(match_event(&fills[1]).maker, 2);
+        assert_eq!(match_event(&fills[1]).taker, 4);
+        assert_eq!(match_event(&fills[1]).price, 100);
+        assert_eq!(match_event(&fills[1]).qty, 5);
 
-        assert_eq!(fills[2].maker, 3);
-        assert_eq!(fills[2].taker, 4);
-        assert_eq!(fills[2].price, 101);
-        assert_eq!(fills[2].qty, 6);
+        assert_eq!(match_event(&fills[2]).maker, 3);
+        assert_eq!(match_event(&fills[2]).taker, 4);
+        assert_eq!(match_event(&fills[2]).price, 101);
+        assert_eq!(match_event(&fills[2]).qty, 6);
 
         assert!(book.asks.levels.is_empty());
     }
@@ -418,13 +444,13 @@ mod tests {
         // Order 2 (3 partial)
         assert_eq!(fills.len(), 2);
 
-        assert_eq!(fills[0].maker, 1);
-        assert_eq!(fills[0].price, 100);
-        assert_eq!(fills[0].qty, 5);
+        assert_eq!(match_event(&fills[0]).maker, 1);
+        assert_eq!(match_event(&fills[0]).price, 100);
+        assert_eq!(match_event(&fills[0]).qty, 5);
 
-        assert_eq!(fills[1].maker, 2);
-        assert_eq!(fills[1].price, 100);
-        assert_eq!(fills[1].qty, 3);
+        assert_eq!(match_event(&fills[1]).maker, 2);
+        assert_eq!(match_event(&fills[1]).price, 100);
+        assert_eq!(match_event(&fills[1]).qty, 3);
 
         // Order 2 should still have 2 remaining
         let remaining = book.get_order(2).unwrap();
@@ -467,12 +493,12 @@ mod tests {
         // 100 -> 101 -> 102
         assert_eq!(fills.len(), 3);
 
-        assert_eq!(fills[0].price, 100);
-        assert_eq!(fills[0].qty, 5);
-        assert_eq!(fills[1].price, 101);
-        assert_eq!(fills[1].qty, 5);
-        assert_eq!(fills[2].price, 102);
-        assert_eq!(fills[2].qty, 2);
+        assert_eq!(match_event(&fills[0]).price, 100);
+        assert_eq!(match_event(&fills[0]).qty, 5);
+        assert_eq!(match_event(&fills[1]).price, 101);
+        assert_eq!(match_event(&fills[1]).qty, 5);
+        assert_eq!(match_event(&fills[2]).price, 102);
+        assert_eq!(match_event(&fills[2]).qty, 2);
         assert_book_consistency(&book);
     }
 }

@@ -1,4 +1,4 @@
-use crate::data::fill_type::FillEvent;
+use crate::data::fill_type::{FillEvent, MatchEvent};
 use crate::data::orders::resting_orders::{OrderId, RestingOrder};
 use crate::orderbook::util::book_side::BookSide;
 use crate::orderbook::util::side::Side;
@@ -93,12 +93,12 @@ impl<'a, OrderSide: Side> Iterator for MatchIter<'a, OrderSide> {
             entry.remove();
         }
 
-        Some(FillEvent {
+        Some(FillEvent::Match(MatchEvent {
             maker: order_id,
             taker: self.order_id,
             price: best_price.0,
             qty: traded,
             ts: Utc::now().timestamp_micros(),
-        })
+        }))
     }
 }
