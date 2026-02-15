@@ -16,7 +16,7 @@ struct Args {
     #[arg(long)]
     mode: String,
 
-    #[arg(long, default_value = "replay_output.csv")]
+    #[arg(long, default_value = "replay_input.csv")]
     replay_output: String,
 
     /// Input file for replay mode
