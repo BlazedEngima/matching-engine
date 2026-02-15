@@ -5,6 +5,7 @@ use crate::data::orders::inbound_orders::IncomingLimitOrder;
 
 pub type OrderId = u64;
 
+#[derive(Debug)]
 pub struct RestingOrder {
     pub order_id: OrderId,
     pub price: u64,

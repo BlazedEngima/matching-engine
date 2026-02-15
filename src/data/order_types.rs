@@ -9,6 +9,7 @@ pub enum IncomingSide {
     Sell = 1,
 }
 
+#[derive(Debug)]
 pub enum IncomingOrder {
     InboundLimit(IncomingLimitOrder),
     InboundMarket(IncomingMarketOrder),

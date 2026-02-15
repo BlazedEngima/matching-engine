@@ -48,9 +48,9 @@ impl<'a, OrderSide: Side> Iterator for MatchIter<'a, OrderSide> {
             return None;
         }
 
-        // Best price level
         let mut entry = self.side.levels.first_entry()?;
 
+        // Compare price levels with the best price
         if let Some(price_limit) = &self.price_limit
             && OrderSide::compare_price(entry.key(), price_limit)
         {
@@ -60,6 +60,7 @@ impl<'a, OrderSide: Side> Iterator for MatchIter<'a, OrderSide> {
         let best_price = OrderSide::key_to_price(entry.key().clone());
         let level = entry.get_mut();
 
+        debug_assert!(level.head.is_some());
         let slab_index = level.head?;
 
         let qty = self.orders[slab_index].qty;
@@ -90,6 +91,7 @@ impl<'a, OrderSide: Side> Iterator for MatchIter<'a, OrderSide> {
 
         // If price level empty -> remove it
         if level.head.is_none() {
+            debug_assert_eq!(level.total_orders, 0);
             entry.remove();
         }
 

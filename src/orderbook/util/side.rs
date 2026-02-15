@@ -6,6 +6,8 @@ pub trait Side {
 
     fn key_to_price(key: Self::Key) -> PriceKey;
 
+    fn side() -> String;
+
     fn compare_price(best: &Self::Key, limit: &Self::Key) -> bool {
         best > limit
     }
@@ -16,6 +18,11 @@ impl Side for Bids {
     type Key = Reverse<PriceKey>;
 
     #[inline]
+    fn side() -> String {
+        "Bids".to_string()
+    }
+
+    #[inline]
     fn key_to_price(key: Self::Key) -> PriceKey {
         key.0
     }
@@ -24,6 +31,11 @@ impl Side for Bids {
 pub struct Asks;
 impl Side for Asks {
     type Key = PriceKey;
+
+    #[inline]
+    fn side() -> String {
+        "Asks".to_string()
+    }
 
     #[inline]
     fn key_to_price(key: Self::Key) -> PriceKey {

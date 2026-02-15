@@ -126,6 +126,7 @@ impl OrderBook {
         level.total_orders -= 1;
 
         if level.head.is_none() {
+            debug_assert_eq!(level.total_orders, 0);
             match side {
                 IncomingSide::Buy => {
                     self.bids.levels.remove(&std::cmp::Reverse(price_key));
