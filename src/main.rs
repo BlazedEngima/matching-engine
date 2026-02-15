@@ -19,6 +19,15 @@ struct Args {
     #[arg(long, default_value = "replay_input.csv")]
     replay_output: String,
 
+    #[arg(long, default_value = "12345")]
+    seed: u64,
+
+    #[arg(long, default_value = "10000")]
+    mid_price: i64,
+
+    #[arg(long, default_value = "10000")]
+    num_of_events: usize,
+
     /// Input file for replay mode
     #[arg(long)]
     input: Option<String>,
@@ -29,7 +38,6 @@ struct Args {
 }
 
 const DEFAULT_SIZE: usize = 1 << 16;
-const NUM_OF_EVENTS: usize = 10_000;
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
@@ -38,8 +46,8 @@ fn main() -> anyhow::Result<()> {
     let input_events: Vec<IncomingOrder> = match args.mode.as_str() {
         "gen" => {
             println!("Generating random input...");
-            let mut generator = Generator::new(1532, 10_000, &args.replay_output)?;
-            generator.generate(NUM_OF_EVENTS) // generate N events
+            let mut generator = Generator::new(args.seed, args.mid_price, &args.replay_output)?;
+            generator.generate(args.num_of_events) // generate N events
         }
         "replay" => {
             println!("Loading replay file...");
