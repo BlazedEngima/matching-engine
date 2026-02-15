@@ -5,7 +5,7 @@ use matching_engine::engine::matching_engine::Engine;
 use matching_engine::input::generator::Generator;
 use matching_engine::input::replay_reader::ReplayReader;
 use matching_engine::logger::book_logger::BookLogger;
-use rtrb::{PopError, RingBuffer};
+use rtrb::RingBuffer;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -38,7 +38,7 @@ fn main() -> anyhow::Result<()> {
     let input_events: Vec<IncomingOrder> = match args.mode.as_str() {
         "gen" => {
             println!("Generating random input...");
-            let mut generator = Generator::new(12345, 10_000, &args.replay_output)?;
+            let mut generator = Generator::new(1532, 10_000, &args.replay_output)?;
             generator.generate(NUM_OF_EVENTS) // generate N events
         }
         "replay" => {
@@ -53,42 +53,48 @@ fn main() -> anyhow::Result<()> {
     println!("Loaded {} input events", input_events.len());
 
     // Init ring buffer and syncing atmoic bool
+    let mut engine = Engine::new(1 << 16);
     let (mut producer, mut consumer) = RingBuffer::<BookEvent>::new(DEFAULT_SIZE);
     let done = Arc::new(AtomicBool::new(false));
     let done_producer = done.clone();
     let output_path = args.output;
 
-    // Spawn logging thread
-    let logger_handle = thread::spawn(move || -> anyhow::Result<()> {
-        let mut logger = BookLogger::new(&output_path)?;
-        while !done.load(Ordering::Relaxed) && consumer.is_empty() {
-            match consumer.pop() {
-                Ok(event) => logger.log(&event)?,
-                Err(PopError::Empty) => std::hint::spin_loop(),
+    // Spawn engine(producer) thread
+    let engine_handle = thread::spawn(move || -> anyhow::Result<()> {
+        // Perform main engine matching task
+        for order in input_events {
+            let events = engine.match_order(order);
+            for event in events {
+                producer.push(event)?;
             }
         }
 
-        logger.flush()?;
+        let book_state = engine.get_book().print_book();
+        // Should only be one element
+        for event in book_state {
+            producer.push(event)?;
+        }
+        done_producer.store(true, Ordering::Release);
         Ok(())
     });
 
-    let mut engine = Engine::new(1 << 16);
-
-    // Perform main engine matching task
-    for order in input_events {
-        let events = engine.match_order(order);
-        for event in events {
-            producer.push(event)?;
+    let mut logger = BookLogger::new(&output_path)?;
+    loop {
+        match consumer.pop() {
+            Ok(event) => {
+                logger.log(&event)?;
+            }
+            Err(_) => {
+                if done.load(Ordering::Acquire) {
+                    break;
+                }
+                // Otherwise just continue trying
+            }
         }
     }
 
-    done_producer.store(true, Ordering::Relaxed);
-
-    // --------------------------------------------------
-    // Step 5: Wait for Logger Thread
-    // --------------------------------------------------
-
-    logger_handle.join().unwrap()?;
+    logger.flush()?;
+    engine_handle.join().unwrap()?;
 
     println!("Done.");
 
