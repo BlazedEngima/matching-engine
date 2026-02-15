@@ -69,4 +69,9 @@ impl Engine {
     pub fn match_cancel(&mut self, order: IncomingCancelOrder) -> Vec<BookEvent> {
         self.book.cancel_order(order.order_id)
     }
+
+    #[inline]
+    pub fn get_book(&self) -> &OrderBook {
+        &self.book
+    }
 }

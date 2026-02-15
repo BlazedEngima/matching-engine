@@ -1,5 +1,4 @@
 use crate::data::book_event::BookEvent;
-use crate::orderbook::order_book::OrderBook;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
@@ -31,9 +30,12 @@ impl BookLogger {
             }
             BookEvent::Insert(event) => {
                 format!(
-                    "INSERT,id({}),price({}),qty({}),ts({})\n",
-                    event.order_id, event.price, event.qty, event.ts
+                    "INSERT,id({}),price({}),qty({}),side({}),ts({})\n",
+                    event.order_id, event.price, event.qty, event.side, event.ts
                 )
+            }
+            BookEvent::BookSnapshot(data) => {
+                format!("--- Final book state ---\n{}\n", data)
             }
         };
 
@@ -42,9 +44,5 @@ impl BookLogger {
 
     pub fn flush(&mut self) -> std::io::Result<()> {
         self.writer.flush()
-    }
-
-    pub fn print_book_state(&mut self, book: &OrderBook) -> std::io::Result<()> {
-        book.print_book(&mut self.writer)
     }
 }

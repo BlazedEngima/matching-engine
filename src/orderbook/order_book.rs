@@ -13,7 +13,6 @@ use slab::Slab;
 use std::cmp::Reverse;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::io::{BufWriter, Write};
 
 pub struct OrderBook {
     bids: BookSide<Bids>,
@@ -67,9 +66,12 @@ impl OrderBook {
         self.order_map.insert(self.orders[idx].order_id, idx);
 
         let price = self.orders[idx].price;
+        let side;
         let level = if IS_BID {
+            side = IncomingSide::Buy;
             self.bids.level_mut(Reverse(PriceKey(price)))
         } else {
+            side = IncomingSide::Sell;
             self.asks.level_mut(PriceKey(price))
         };
 
@@ -88,6 +90,7 @@ impl OrderBook {
             order_id: self.orders[idx].order_id,
             price,
             qty: remaining,
+            side,
             ts: Utc::now().timestamp_micros(),
         })
     }
@@ -229,15 +232,17 @@ impl OrderBook {
         self.asks.levels.first_key_value().map(|(k, _)| k)
     }
 
-    pub fn print_book<W: Write>(&self, output: &mut BufWriter<W>) -> std::io::Result<()> {
-        output.write_all("---- BIDS ----\n".as_bytes())?;
-        self.bids.print_levels(output)?;
-        output.write_all("---- ASKS ----\n".as_bytes())?;
-        self.asks.print_levels(output)?;
+    pub fn print_book(&self) -> Vec<BookEvent> {
         let checksum = self.checksum();
 
-        output.write_all(format!("OrderBook checksum is: {}\n", checksum).as_bytes())?;
-        Ok(())
+        let output_string = format!(
+            "---- BIDS ----\n{}\n---- ASKS ----\n{}\nOrderBook checksum is: {}\n",
+            self.bids.print_levels(),
+            self.asks.print_levels(),
+            checksum
+        );
+
+        vec![BookEvent::BookSnapshot(output_string)]
     }
 
     /// For checking equality of order book state via a checksum

@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::data::orders::inbound_orders::{
     IncomingCancelOrder, IncomingLimitOrder, IncomingMarketOrder,
 };
@@ -14,4 +16,13 @@ pub enum IncomingOrder {
     InboundLimit(IncomingLimitOrder),
     InboundMarket(IncomingMarketOrder),
     InboundCancel(IncomingCancelOrder),
+}
+
+impl fmt::Display for IncomingSide {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IncomingSide::Buy => write!(f, "BUY"),
+            IncomingSide::Sell => write!(f, "SELL"),
+        }
+    }
 }
