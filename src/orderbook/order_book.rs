@@ -123,6 +123,12 @@ impl OrderBook {
             level.head = next;
         }
 
+        if let Some(next_index) = next {
+            self.orders[next_index].prev = prev;
+        } else {
+            level.tail = prev;
+        }
+
         level.total_orders -= 1;
 
         if level.head.is_none() {

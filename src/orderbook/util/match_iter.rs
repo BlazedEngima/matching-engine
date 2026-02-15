@@ -73,13 +73,23 @@ impl<'a, OrderSide: Side> Iterator for MatchIter<'a, OrderSide> {
 
         // If fully filled
         if self.orders[slab_index].qty == 0 {
+            let prev = self.orders[slab_index].prev;
             let next = self.orders[slab_index].next;
 
-            // Advance linked list
-            level.head = next;
+            // Connect prev to next before deleting
+            if let Some(prev_index) = prev {
+                self.orders[prev_index].next = next;
+            } else {
+                // We are deleting the head
+                level.head = next;
+            }
 
-            if next.is_none() {
-                level.tail = None;
+            // Connect next to prev before deleting
+            if let Some(next_index) = next {
+                self.orders[next_index].prev = prev;
+            } else {
+                // We are deleting the tail
+                level.tail = prev;
             }
 
             level.total_orders -= 1;
