@@ -42,7 +42,7 @@ impl ReplayReader<BufReader<File>> {
 }
 
 fn parse_event(line: &str) -> Option<IncomingOrder> {
-    let mut parts = line.split(',');
+    let mut parts = line.trim().split(',');
 
     match parts.next()? {
         "ADD" => {
@@ -51,7 +51,10 @@ fn parse_event(line: &str) -> Option<IncomingOrder> {
             let side = match parts.next()? {
                 "B" => IncomingSide::Buy,
                 "A" => IncomingSide::Sell,
-                _ => return None,
+                other => {
+                    println!("Unknown side encountered: {}", other);
+                    return None;
+                }
             };
 
             match parts.next()? {
@@ -87,6 +90,9 @@ fn parse_event(line: &str) -> Option<IncomingOrder> {
             }))
         }
 
-        _ => None,
+        other => {
+            println!("Unknown order_type encountered: {}", other);
+            None
+        }
     }
 }
