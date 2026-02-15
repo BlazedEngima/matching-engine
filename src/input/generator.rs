@@ -83,7 +83,6 @@ impl Generator {
             self.update_mid();
 
             let order_id = self.next_order_id;
-            self.next_order_id += 1;
 
             let side = if self.rng.random_bool(0.5) {
                 IncomingSide::Buy
@@ -98,12 +97,16 @@ impl Generator {
             // Generate cancel order
             if roll < self.cancel_ratio && !self.active_orders.is_empty() {
                 let idx = self.rng.random_range(0..self.active_orders.len());
-                let order_id = self.active_orders.swap_remove(idx);
-                let event = IncomingOrder::InboundCancel(IncomingCancelOrder { order_id });
+                let remove_order_id = self.active_orders.swap_remove(idx);
+                let event = IncomingOrder::InboundCancel(IncomingCancelOrder {
+                    order_id: remove_order_id,
+                });
                 self.write_event(&event);
                 inputs.push(event);
                 continue;
             }
+
+            self.next_order_id += 1;
 
             // Generate market order
             if roll < self.market_ratio {
